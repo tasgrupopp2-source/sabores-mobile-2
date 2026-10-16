@@ -4,7 +4,9 @@
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
+    Platform,
     RefreshControl,
     SafeAreaView,
     Text,
@@ -30,6 +32,12 @@ const obtenerNombreEstado = (estadoId) => {
   };
 
   return estados[estadoId] || "Estado desconocido";
+};
+
+// el siguiente paso de cada estado: pendiente -> en ruta -> entregado
+const SIGUIENTE_ESTADO = {
+  est001: { estadoId: "est005", texto: "Enviar (pasa a En ruta)", icono: "🚚" },
+  est005: { estadoId: "est004", texto: "Marcar como entregado", icono: "✅" },
 };
 
 // Función que formatea los importes en pesos argentinos.
@@ -62,6 +70,9 @@ export default function ListaPedidos({ navigation, route }) {
 
   // Guardamos los pedidos y el estado de la consulta.
   const [pedidos, setPedidos] = useState([]);
+  // para mostrar el nombre del cliente y lo que compro
+  const [clientes, setClientes] = useState({}); // { cli001: "Juan Perez" }
+  const [detalles, setDetalles] = useState({}); // { ped011: [{ nombre, cantidad, subtotal }] }
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
   const [error, setError] = useState("");
@@ -96,6 +107,43 @@ export default function ListaPedidos({ navigation, route }) {
 
       // Guardamos los resultados.
       setPedidos(data || []);
+
+      // traemos los clientes para mostrar el nombre en vez del id
+      const resClientes = await supabase.from("clientes").select("id, nombre, apellido");
+      if (!resClientes.error) {
+        const mapa = {};
+        (resClientes.data || []).forEach((c) => {
+          mapa[c.id] = `${c.nombre ?? ""} ${c.apellido ?? ""}`.trim();
+        });
+        setClientes(mapa);
+      }
+
+      // traemos los productos que se compraron en estos pedidos
+      const ids = (data || []).map((p) => String(p.id));
+      if (ids.length > 0) {
+        const [resDetalle, resProductos] = await Promise.all([
+          supabase.from("detalle_pedido").select("*").in("pedidoId", ids),
+          supabase.from("productos").select("id, nombre"),
+        ]);
+        if (resDetalle.error) {
+          console.log("Sin detalle de pedidos:", resDetalle.error.message);
+        } else {
+          const nombres = {};
+          (resProductos.data || []).forEach((p) => {
+            nombres[String(p.id)] = p.nombre;
+          });
+          const agrupado = {};
+          (resDetalle.data || []).forEach((d) => {
+            if (!agrupado[d.pedidoId]) agrupado[d.pedidoId] = [];
+            agrupado[d.pedidoId].push({
+              nombre: nombres[String(d.productoId)] || "Producto",
+              cantidad: d.cantidad,
+              subtotal: d.subtotal,
+            });
+          });
+          setDetalles(agrupado);
+        }
+      }
     } catch (err) {
       console.error("Error al cargar pedidos:", err);
       setError(err.message || "No se pudieron cargar los pedidos.");
@@ -105,10 +153,33 @@ export default function ListaPedidos({ navigation, route }) {
     }
   };
 
+  // cambia el estado del pedido en supabase y recarga la lista
+  const avanzarEstado = async (pedido) => {
+    const siguiente = SIGUIENTE_ESTADO[pedido.estadoId];
+    if (!siguiente) return;
+
+    const { error: errorUpdate } = await supabase
+      .from("pedidos")
+      .update({ estadoId: siguiente.estadoId })
+      .eq("id", pedido.id);
+
+    if (errorUpdate) {
+      const mensaje = errorUpdate.message || "No se pudo cambiar el estado.";
+      if (Platform.OS === "web") globalThis.alert(mensaje);
+      else Alert.alert("Error", mensaje);
+      return;
+    }
+
+    // el pedido se va de esta lista porque ya no tiene este estado
+    cargarPedidos(true);
+  };
+
   // Cargamos los pedidos cuando se abre la pantalla.
+  // y cada vez que volvemos (por ejemplo despues de crear un pedido)
   useEffect(() => {
-    cargarPedidos();
-  }, [estadoId]);
+    const quitar = navigation.addListener("focus", () => cargarPedidos());
+    return quitar;
+  }, [navigation, estadoId]);
 
   // Componente visual de cada pedido.
   const renderizarPedido = ({ item }) => {
@@ -130,17 +201,53 @@ export default function ListaPedidos({ navigation, route }) {
 
         <Text style={styles.etiqueta}>Cliente</Text>
         <Text style={styles.valor}>
-          {item.clienteId || "Sin cliente asignado"}
+          {clientes[item.clienteId] || item.clienteId || "Sin cliente asignado"}
         </Text>
 
         <Text style={styles.etiqueta}>Fecha</Text>
         <Text style={styles.valor}>{formatearFecha(item.fecha)}</Text>
+
+        {/* lo que compro el cliente */}
+        <Text style={styles.etiqueta}>Productos</Text>
+        {(detalles[String(item.id)] || []).length === 0 ? (
+          <Text style={styles.valor}>Sin detalle de productos</Text>
+        ) : (
+          detalles[String(item.id)].map((d, i) => (
+            <View
+              key={i}
+              style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}
+            >
+              <Text style={styles.valor}>
+                {d.nombre} × {d.cantidad}
+              </Text>
+              <Text style={styles.valor}>{formatearMoneda(d.subtotal)}</Text>
+            </View>
+          ))
+        )}
 
         {/* Total del pedido */}
         <View style={styles.filaTotal}>
           <Text style={styles.textoTotal}>Total del pedido</Text>
           <Text style={styles.importe}>{formatearMoneda(item.total)}</Text>
         </View>
+
+        {/* boton para pasar el pedido al siguiente estado */}
+        {SIGUIENTE_ESTADO[item.estadoId] ? (
+          <TouchableOpacity
+            onPress={() => avanzarEstado(item)}
+            style={{
+              marginTop: 12,
+              backgroundColor: "#F15A29",
+              paddingVertical: 12,
+              borderRadius: 10,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#FFFFFF", fontWeight: "bold" }}>
+              {SIGUIENTE_ESTADO[item.estadoId].icono} {SIGUIENTE_ESTADO[item.estadoId].texto}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   };
@@ -161,6 +268,22 @@ export default function ListaPedidos({ navigation, route }) {
         <Text style={styles.subtitulo}>
           Pedidos registrados en Sabores Andinos
         </Text>
+
+        {/* en pendientes se pueden cargar pedidos nuevos */}
+        {estadoId === "est001" ? (
+          <TouchableOpacity
+            onPress={() => navigation.navigate("NuevoPedido")}
+            style={{
+              marginTop: 12,
+              backgroundColor: "#F15A29",
+              paddingVertical: 12,
+              borderRadius: 10,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#FFFFFF", fontWeight: "bold" }}>+ Nuevo pedido</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Contenido principal */}

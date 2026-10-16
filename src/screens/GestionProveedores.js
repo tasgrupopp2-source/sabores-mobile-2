@@ -82,7 +82,7 @@ export default function GestionProveedores({ navigation }) {
 
   const guardarProveedor = async () => {
     if (!nombre.trim() || !contacto.trim() || !telefono.trim()) {
-      mostrarMensaje("Campos incompletos", "Completá el nombre, el contacto y el teléfono.");
+      mostrarMensaje("Campos incompletos", "Completá el nombre de la empresa, el nombre del proveedor y el teléfono.");
       return;
     }
 
@@ -140,14 +140,26 @@ export default function GestionProveedores({ navigation }) {
 
   const renderProveedor = ({ item }) => (
     <View style={styles.tarjeta}>
-      <Text style={styles.nombreProveedor}>{item.nombre || "Sin nombre"}</Text>
-      <View style={styles.etiquetaRubro}>
-        <Text style={styles.textoRubro}>{item.rubro || "Sin rubro"}</Text>
-      </View>
-      <Text style={styles.textoInfoSeparado}>
-        Contacto: {item.contacto || "No especificado"}
+      {/* id del proveedor arriba de todo */}
+      <Text style={{ color: "#F15A29", fontWeight: "bold", marginBottom: 6 }}>
+        ID: {item.id}
       </Text>
-      <Text style={styles.textoInfo}>Teléfono: {item.telefono || "No especificado"}</Text>
+      <Text style={styles.textoInfo}>
+        <Text style={{ fontWeight: "bold" }}>Nombre de la empresa: </Text>
+        {item.nombre || "Sin nombre"}
+      </Text>
+      <Text style={styles.textoInfo}>
+        <Text style={{ fontWeight: "bold" }}>Catálogo: </Text>
+        {item.rubro || "Sin catálogo"}
+      </Text>
+      <Text style={styles.textoInfo}>
+        <Text style={{ fontWeight: "bold" }}>Nombre del proveedor: </Text>
+        {item.contacto || "No especificado"}
+      </Text>
+      <Text style={styles.textoInfo}>
+        <Text style={{ fontWeight: "bold" }}>Número de teléfono: </Text>
+        {item.telefono || "No especificado"}
+      </Text>
       <View style={styles.acciones}>
         <TouchableOpacity onPress={() => abrirEdicion(item)} style={styles.botonEditar}>
           <Ionicons name="create-outline" size={20} color="#2c2119" />
@@ -219,30 +231,44 @@ export default function GestionProveedores({ navigation }) {
             <Text style={styles.tituloModal}>
               {proveedorEditando ? "Editar proveedor" : "Agregar proveedor"}
             </Text>
+            {/* el id solo se muestra al editar (al agregar se crea solo) */}
+            {proveedorEditando ? (
+              <Text style={{ color: "#F15A29", fontWeight: "bold", marginBottom: 10 }}>
+                ID: {proveedorEditando.id}
+              </Text>
+            ) : null}
+
+            <Text style={{ fontWeight: "600", marginBottom: 4 }}>Nombre de la empresa:</Text>
             <TextInput
-              placeholder="Nombre del proveedor"
+              placeholder="Ej: Dulces de la Quebrada"
               value={nombre}
               onChangeText={setNombre}
               style={styles.campo}
             />
+
+            <Text style={{ fontWeight: "600", marginTop: 10, marginBottom: 4 }}>Catálogo:</Text>
             <TextInput
-              placeholder="Rubro (por ejemplo: Especias)"
+              placeholder="Ej: Dulces"
               value={rubro}
               onChangeText={setRubro}
-              style={styles.campoSecundario}
+              style={styles.campo}
             />
+
+            <Text style={{ fontWeight: "600", marginTop: 10, marginBottom: 4 }}>Nombre del proveedor:</Text>
             <TextInput
-              placeholder="Contacto"
+              placeholder="Ej: Rosa Cruz"
               value={contacto}
               onChangeText={setContacto}
-              style={styles.campoSecundario}
+              style={styles.campo}
             />
+
+            <Text style={{ fontWeight: "600", marginTop: 10, marginBottom: 4 }}>Número de teléfono:</Text>
             <TextInput
-              placeholder="Teléfono"
+              placeholder="Ej: 3874889900"
               value={telefono}
               onChangeText={setTelefono}
               keyboardType="phone-pad"
-              style={styles.campoSecundario}
+              style={styles.campo}
             />
             <View style={styles.botonesModal}>
               <TouchableOpacity

@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  InputAccessoryView,
+  Keyboard,
+  KeyboardAvoidingView,
   Platform,
+  RefreshControl,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -11,12 +15,12 @@ import {
 } from "react-native";
 
 import OrdenCompraCard from "../components/ordenesCompra/OrdenCompraCard";
-import { obtenerProductos } from "../services/productosServices";
 import {
   crearOrdenCompra,
   eliminarOrdenCompra,
   obtenerOrdenesCompra,
 } from "../services/ordenesCompraService";
+import { obtenerProductos } from "../services/productosServices";
 import { obtenerProveedores } from "../services/proveedoresService";
 import styles from "../styles/ordenesCompraStyles";
 
@@ -26,6 +30,9 @@ const detalleVacio = () => ({
   cantidad: "1",
   precioUnitario: "",
 });
+
+// id para la barrita con el boton "Listo" arriba del teclado (solo iphone)
+const ID_TECLADO = "tecladoOrdenCompra";
 
 const obtenerNombreProveedor = (orden) =>
   orden.proveedor?.nombre || orden.proveedores?.nombre || "Proveedor sin nombre";
@@ -78,11 +85,11 @@ export default function OrdenesCompra({ navigation }) {
         const producto = productos.find(
           (item) => String(item.id) === String(detalle.productoId),
         );
-        const precio = Number(detalle.precioUnitario || producto?.precio || 0);
+        const precio = Number(detalle.precioUnitario || producto?.precio_compra || producto?.precio || 0);
         const cantidad = Number(detalle.cantidad) || 0;
         return {
           ...detalle,
-          precioUnitario: detalle.precioUnitario || producto?.precio || "",
+          precioUnitario: detalle.precioUnitario || producto?.precio_compra || producto?.precio || "",
           totalParcial: precio * cantidad,
         };
       }),
@@ -189,10 +196,19 @@ export default function OrdenesCompra({ navigation }) {
     const producto = productos.find(
       (item) => String(item.id) === String(detalle.productoId),
     );
+    // solo los productos del proveedor elegido
+    const productosDelProveedor = productos.filter(
+      (p) => String(p.proveedor_id) === String(proveedorNuevo),
+    );
     return (
       <View style={styles.filaDetalleFormulario} key={detalle.id}>
         <View style={styles.campoPrecio}>
-          {productos.map((item) => (
+          {productosDelProveedor.length === 0 && (
+            <Text style={styles.textoOpcion}>
+              {proveedorNuevo ? "Este proveedor no tiene productos." : "Elegí un proveedor primero."}
+            </Text>
+          )}
+          {productosDelProveedor.map((item) => (
             <TouchableOpacity
               key={item.id}
               style={[
@@ -202,7 +218,8 @@ export default function OrdenesCompra({ navigation }) {
               onPress={() =>
                 actualizarDetalle(detalle.id, {
                   productoId: item.id,
-                  precioUnitario: item.precio,
+                  // se compra al precio de compra (si no tiene, usa el de venta)
+                  precioUnitario: item.precio_compra || item.precio,
                 })
               }
               disabled={guardando}
@@ -225,17 +242,23 @@ export default function OrdenesCompra({ navigation }) {
           onChangeText={(cantidad) => actualizarDetalle(detalle.id, { cantidad })}
           keyboardType="numeric"
           editable={!guardando}
+          inputAccessoryViewID={ID_TECLADO}
         />
-        <TextInput
-          style={styles.campoPrecio}
-          placeholder="Precio"
-          value={String(detalle.precioUnitario)}
-          onChangeText={(precioUnitario) =>
-            actualizarDetalle(detalle.id, { precioUnitario })
-          }
-          keyboardType="numeric"
-          editable={!guardando}
-        />
+        {/* el precio no se toca: se calcula solo (precio de compra x cantidad) */}
+        <View style={[styles.campoPrecio, { justifyContent: "center", backgroundColor: "#F3EEE8" }]}>
+          {detalle.precioUnitario ? (
+            <>
+              <Text style={{ color: "#302820", fontWeight: "bold" }}>
+                $ {(Number(detalle.precioUnitario) * (Number(detalle.cantidad) || 0)).toLocaleString("es-AR")}
+              </Text>
+              <Text style={{ color: "#8C8178", fontSize: 11 }}>
+                $ {Number(detalle.precioUnitario).toLocaleString("es-AR")} c/u
+              </Text>
+            </>
+          ) : (
+            <Text style={{ color: "#8C8178" }}>Precio</Text>
+          )}
+        </View>
         <TouchableOpacity
           style={styles.botonQuitarDetalle}
           onPress={() => quitarDetalle(detalle.id)}
@@ -248,7 +271,19 @@ export default function OrdenesCompra({ navigation }) {
   };
 
   return (
-    <View style={styles.contenedor}>
+    // el KeyboardAvoidingView empuja la pantalla para arriba cuando sale el teclado
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+    {/* ahora toda la pantalla se puede bajar (antes quedaba trabada) */}
+    <ScrollView
+      style={styles.contenedor}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled" // se pueden tocar botones con el teclado abierto
+      keyboardDismissMode="on-drag" // si deslizas la pantalla se baja el teclado
+      refreshControl={<RefreshControl refreshing={false} onRefresh={cargarDatos} />}
+    >
       <View style={styles.encabezado}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.flecha}>←</Text>
@@ -281,7 +316,11 @@ export default function OrdenesCompra({ navigation }) {
                   styles.opcionSeleccion,
                   proveedorNuevo === proveedor.id && styles.opcionSeleccionActiva,
                 ]}
-                onPress={() => setProveedorNuevo(proveedor.id)}
+                onPress={() => {
+                  setProveedorNuevo(proveedor.id);
+                  // al cambiar de proveedor se limpian los productos elegidos
+                  setDetallesNuevos([detalleVacio()]);
+                }}
                 disabled={guardando}
               >
                 <Text
@@ -318,22 +357,42 @@ export default function OrdenesCompra({ navigation }) {
       {cargando ? (
         <ActivityIndicator size="large" color="#F15A29" style={styles.indicadorCarga} />
       ) : (
-        <FlatList
-          data={ordenesFiltradas}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <OrdenCompraCard
-              orden={item}
-              nombreProveedor={obtenerNombreProveedor(item)}
-              onEliminar={handleEliminar}
-            />
+        // como ya estamos dentro de un ScrollView, las ordenes se muestran con map
+        <View style={styles.lista}>
+          {ordenesFiltradas.length === 0 ? (
+            <Text style={styles.textoVacio}>No hay órdenes de compra registradas.</Text>
+          ) : (
+            ordenesFiltradas.map((item) => (
+              <OrdenCompraCard
+                key={String(item.id)}
+                orden={item}
+                nombreProveedor={obtenerNombreProveedor(item)}
+                onEliminar={handleEliminar}
+              />
+            ))
           )}
-          contentContainerStyle={styles.lista}
-          refreshing={cargando}
-          onRefresh={cargarDatos}
-          ListEmptyComponent={<Text style={styles.textoVacio}>No hay órdenes de compra registradas.</Text>}
-        />
+        </View>
       )}
-    </View>
+    </ScrollView>
+
+    {/* en iphone el teclado de numeros no tiene boton para cerrarlo, asi que le agregamos "Listo" */}
+    {Platform.OS === "ios" && (
+      <InputAccessoryView nativeID={ID_TECLADO}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "flex-end",
+            backgroundColor: "#F1ECE6",
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+          }}
+        >
+          <TouchableOpacity onPress={() => Keyboard.dismiss()}>
+            <Text style={{ color: "#F15A29", fontWeight: "bold", fontSize: 16 }}>Listo</Text>
+          </TouchableOpacity>
+        </View>
+      </InputAccessoryView>
+    )}
+    </KeyboardAvoidingView>
   );
 }
