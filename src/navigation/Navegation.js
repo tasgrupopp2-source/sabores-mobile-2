@@ -8,6 +8,7 @@ import GestionProveedores from "../screens/GestionProveedores";
 import Home from "../screens/Home";
 import OrdenesCompra from "../screens/OrdenesCompra";
 import ListaPedidos from "../screens/ListaPedidos";
+import NuevoPedido from "../screens/NuevoPedido";
 import Login from "../screens/Login";
 import NuevaPassword from "../screens/NuevaPassword";
 import NuevosProductos from "../screens/nuevosProductos";
@@ -52,6 +53,7 @@ export default function Navigation() {
         />
         {/* Gestion lista pedidos */}
         <Stack.Screen name="ListaPedidos" component={ListaPedidos} />
+        <Stack.Screen name="NuevoPedido" component={NuevoPedido} />
 
         {/* Órdenes de compra */}
         <Stack.Screen name="OrdenesCompra" component={OrdenesCompra} />

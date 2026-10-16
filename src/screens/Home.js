@@ -48,8 +48,14 @@ export default function Home({ navigation }) {
   // Guarda la cantidad real de pedidos que están en ruta.
   const [pedidosEnRuta, setPedidosEnRuta] = useState(0);
 
+  // cantidad de pedidos ya entregados
+  const [pedidosEntregados, setPedidosEntregados] = useState(0);
+
   // Indica si todavía se están cargando los datos de los pedidos.
   const [cargandoPedidos, setCargandoPedidos] = useState(true);
+
+  // cantidad real de productos con stock critico (entre 1 y 15)
+  const [productosCriticos, setProductosCriticos] = useState(0);
 
   // Consulta Supabase cuando entramos a esta pantalla o volvemos a ella.
   useFocusEffect(
@@ -64,7 +70,7 @@ export default function Home({ navigation }) {
 
         try {
           // Consultamos en paralelo los pedidos de cada estado.
-          const [resultadoPendientes, resultadoEnRuta] = await Promise.all([
+          const [resultadoPendientes, resultadoEnRuta, resultadoEntregados] = await Promise.all([
             // Estado est001: pedidos pendientes.
             supabase
               .from("pedidos")
@@ -76,6 +82,12 @@ export default function Home({ navigation }) {
               .from("pedidos")
               .select("id", { count: "exact", head: true })
               .eq("estadoId", "est005"),
+
+            // est004: pedidos entregados.
+            supabase
+              .from("pedidos")
+              .select("id", { count: "exact", head: true })
+              .eq("estadoId", "est004"),
           ]);
 
           // Solo actualizamos los estados si la pantalla sigue activa.
@@ -102,6 +114,11 @@ export default function Home({ navigation }) {
             // Actualizamos el contador de pedidos en ruta.
             setPedidosEnRuta(resultadoEnRuta.count ?? 0);
           }
+
+          // contador de entregados
+          if (!resultadoEntregados.error) {
+            setPedidosEntregados(resultadoEntregados.count ?? 0);
+          }
         } catch (error) {
           // Capturamos posibles errores inesperados.
           console.error("Error al consultar los pedidos:", error);
@@ -115,6 +132,17 @@ export default function Home({ navigation }) {
 
       // Ejecutamos la consulta.
       cargarPedidos();
+
+      // contamos los productos con stock critico (misma regla que la pantalla de criticos)
+      supabase
+        .from("productos")
+        .select("id", { count: "exact", head: true })
+        .gt("stock", 0) // mas de 0
+        .lte("stock", 15) // y hasta 15
+        .then(({ count, error }) => {
+          if (error) console.error("Error al contar criticos:", error.message);
+          else if (activo) setProductosCriticos(count ?? 0);
+        });
 
       // Al salir de la pantalla, evitamos actualizar estados innecesariamente.
       return () => {
@@ -203,6 +231,25 @@ export default function Home({ navigation }) {
               <Text style={styles.cajaNumero}>{pedidosEnRuta}</Text>
             )}
           </TouchableOpacity>
+
+          {/* tarjeta de pedidos entregados */}
+          <TouchableOpacity
+            style={styles.cajaNaranja}
+            activeOpacity={0.8}
+            onPress={() =>
+              navigation.navigate("ListaPedidos", {
+                estadoId: "est004",
+                titulo: "Pedidos entregados",
+              })
+            }
+          >
+            <Text style={styles.cajaLabel}>ENTREGADOS</Text>
+            {cargandoPedidos ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.cajaNumero}>{pedidosEntregados}</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Alerta de inventario. */}
@@ -215,7 +262,7 @@ export default function Home({ navigation }) {
 
           <View style={{ flex: 1 }}>
             <Text style={styles.cajaLabel}>ALERTA DE INVENTARIO</Text>
-            <Text>7 productos con stock crítico</Text>
+            <Text>{productosCriticos} productos con stock crítico</Text>
           </View>
 
           {/* Botón para revisar los productos críticos. */}

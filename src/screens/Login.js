@@ -17,6 +17,19 @@ import { colors } from "../config/theme";
 import { supabase } from "../services/supabase";
 import styles, { LOGIN_IMAGES } from "../styles/loginStyles";
 
+// devuelve el saludo y una frase segun la hora del celuS
+const obtenerSaludo = () => {
+  const hora = new Date().getHours(); // 0 a 23
+
+  if (hora >= 6 && hora < 12) {
+    return { titulo: "¡Buenos días!", frase: "Nos alegra tenerte acá. Ingresá a tu cuenta para continuar." };
+  } else if (hora >= 12 && hora < 20) {
+    return { titulo: "¡Buenas tardes!", frase: "Seguí disfrutando de los sabores auténticos de nuestra tierra." };
+  } else {
+    return { titulo: "¡Buenas noches!", frase: "Todo lo natural de nuestra tierra, a un paso de vos." };
+  }
+};
+
 export default function Login({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,12 +54,6 @@ export default function Login({ navigation }) {
 
     navigation.replace("Home");
   };
-  function obtenerSaludo() {
-    const hora = new Date().getHours(); // un numero del 0 al 23
-    if (hora >= 6 && hora < 13) return "Buenos días";
-    if (hora >= 13 && hora < 20) return "Buenas tardes";
-    return "Buenas noches";
-  }
 
   return (
     <View style={styles.container}>
@@ -81,10 +88,9 @@ export default function Login({ navigation }) {
               />
             </View>
 
-            <Text style={styles.title}>Bienvenido</Text>
-            <Text style={styles.subtitle}>
-              Ingresá a tu cuenta para continuar
-            </Text>
+            {/* saludo segun la hora */}
+            <Text style={styles.title}>{obtenerSaludo().titulo}</Text>
+            <Text style={styles.subtitle}>{obtenerSaludo().frase}</Text>
 
             {/* ── Campo: Correo ─────────────────────────────── */}
             <View style={styles.inputContainer}>

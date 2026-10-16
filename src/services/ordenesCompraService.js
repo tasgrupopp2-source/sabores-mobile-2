@@ -53,7 +53,9 @@ async function generarIdOrden() {
 
 export async function crearOrdenCompra(orden) {
   const id = await generarIdOrden();
-  const detalles = (orden.detalles ?? []).map((detalle) => ({
+  const detalles = (orden.detalles ?? []).map((detalle, indice) => ({
+    // supabase no genera el id solo, asi que lo armamos: OC-0003-1, OC-0003-2...
+    id: `${id}-${indice + 1}`,
     ordenId: id,
     productoId: detalle.productoId,
     cantidad: Number(detalle.cantidad),
