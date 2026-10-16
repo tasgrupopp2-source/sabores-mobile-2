@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Sabores Andinos",
+    "slug": "sabores-andinos",
+    "scheme": "saboresandinos",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/Logo/Logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/Logo/Logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F0E8"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.saboresandinos.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/Logo/Logo.png",
+        "backgroundColor": "#F5F0E8"
+      },
+      "package": "com.saboresandinos.app"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-splash-screen"
+    ]
+  }
+}
